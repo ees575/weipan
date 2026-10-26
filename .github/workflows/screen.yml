@@ -1,0 +1,48 @@
+﻿name: 尾盘摸高选股
+on:
+  schedule:
+    # 交易时段每 5 分钟（UTC，北京时间减 8 小时）
+    # 09:30-11:30 -> 01:30-03:30 UTC ; 13:00-15:00 -> 05:00-07:00 UTC
+    - cron: '*/5 1-3 * * 1-5'
+    - cron: '*/5 5-7 * * 1-5'
+  workflow_dispatch:
+permissions:
+  contents: write
+  pages: write
+  id-token: write
+concurrency:
+  group: screen
+  cancel-in-progress: false
+jobs:
+  screen:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - run: pip install -q requests pandas numpy
+      - name: 扫描全市场
+        env:
+          NO_PROXY: '*'
+          PYTHONIOENCODING: utf-8
+        run: python scripts/screen.py
+      - name: 提交结果
+        run: |
+          git config user.name "weipan-bot"
+          git config user.email "bot@users.noreply.github.com"
+          git add docs
+          git commit -m "扫描 2026-10-26 11:38 UTC" || echo "无变化"
+          git push
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: docs
+  deploy:
+    needs: screen
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.dep.outputs.page_url }}
+    steps:
+      - id: dep
+        uses: actions/deploy-pages@v4
